@@ -1,7 +1,7 @@
 from tkinter import *
 import decimal
 from math import factorial
-from multiprocessing import Pool
+from multiprocessing import Pool, freeze_support
 from threading import Thread
 import os
 import sys
@@ -189,6 +189,8 @@ def pi_click(event):
 
 
 if __name__ == '__main__':
+	freeze_support()
+
 	started = False
 	pi_generated = False
 	closed = False
