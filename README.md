@@ -1,7 +1,7 @@
 # Pi-Gen
-A program to calculate given number of decimal digits of Pi
+A program to calculate given number of decimal digits of Pi.
 
-In development!
+Using Chudnovsky algorithm with multiprocessing, pure Python.
 
 Chudnovsky algorithm:
 https://en.wikipedia.org/wiki/Chudnovsky_algorithm
