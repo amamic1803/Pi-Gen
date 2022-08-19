@@ -40,7 +40,7 @@ def pi_chudnovsky_algorithm_chunks(start, end, precision):
 	return sum_of_chunk, (end - start + 1)
 
 def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
-	global started, pi_generated
+	global started, pi_generated, closed
 
 	try:
 		decimal.getcontext().prec = int(number_of_digits * 1.0002) + 10
@@ -93,7 +93,9 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 				progress_queued = 0
 				progress_completed = 0
 				while True:
-					if len(queue_list) < 2 * num_of_cpus and progress_queued != num_of_iterations:
+					if closed:
+						break
+					elif len(queue_list) < 2 * num_of_cpus and progress_queued != num_of_iterations:
 						start_point = progress_queued + 1
 						end_point = progress_queued + min(num_of_iterations - start_point + 1, chunk_size)
 						queue_list.append(pool.apply_async(pi_chudnovsky_algorithm_chunks, args=(start_point, end_point, decimal.getcontext().prec)))
@@ -111,7 +113,9 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 
 			pi_new = str(C / sum_of_series)[:number_of_digits + 2]
 
-		if gui_linked:
+		if closed:
+			return
+		elif gui_linked:
 			started = False
 			digits_ent.config(state="normal")
 			digits_btn.config(background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2)
@@ -123,7 +127,7 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 
 		return pi_new
 
-	except (MemoryError, OverflowError):
+	except (MemoryError, OverflowError, ValueError):
 		if gui_linked:
 			started = False
 			digits_ent.config(state="normal")
@@ -132,7 +136,7 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 			pi_generated = False
 			showerror(title="Too big!", message="Can't calculate that many digits of Pi!", parent=root)
 		else:
-			raise Exception("Number of digits too big!")
+			raise Exception("Number of digits is too big!")
 
 def validate_input(full_text):
 	if " " in full_text or "-" in full_text:
@@ -172,6 +176,7 @@ def generate_click(event):
 		digits_ent.config(state="disabled")
 		digits_btn.config(background="#354842", activebackground="#354842", highlightthickness=2)
 		output_label.config(text="Generating... 0.0 %", background="#B2F3DE")
+		root.update_idletasks()
 
 		generating_thread = Thread(target=pi_chudnovsky_algorithm, args=(int(wanted_digits), True))
 		generating_thread.start()
@@ -186,6 +191,7 @@ def pi_click(event):
 if __name__ == '__main__':
 	started = False
 	pi_generated = False
+	closed = False
 
 	root = Tk()
 	root.resizable(False, False)
@@ -224,4 +230,5 @@ if __name__ == '__main__':
 	output_label.bind("<ButtonRelease-1>", pi_click)
 
 	root.mainloop()
+	closed = True
 	psutil.Process(os.getpid()).kill()
