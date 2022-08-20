@@ -88,7 +88,7 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 				num_of_iterations = ((num_of_iterations // num_of_cpus) + 1) * num_of_cpus
 			chunk_size = 5 * num_of_cpus
 
-			with Pool(processes=num_of_cpus) as pool:
+			with Pool(processes=num_of_cpus, maxtasksperchild=20) as pool:
 				queue_list = []
 				progress_queued = 0
 				progress_completed = 0
