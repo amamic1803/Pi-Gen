@@ -165,21 +165,22 @@ def change_background_pi(event, color):
 
 def generate_click(event):
 	global started, pi_generated
+	if not started:
+		wanted_digits = digits_ent.get()
+		if wanted_digits == "" or wanted_digits == "0":
+			output_label.config(text="3")
+			pi_generated = True
+		else:
 
-	wanted_digits = digits_ent.get()
-	if wanted_digits == "" or wanted_digits == "0":
-		output_label.config(text="3")
-	else:
+			started = True
+			pi_generated = False
+			digits_ent.config(state="disabled")
+			digits_btn.config(background="#354842", activebackground="#354842", highlightthickness=2)
+			output_label.config(text="Generating... 0.0 %", background="#B2F3DE")
+			root.update_idletasks()
 
-		started = True
-		pi_generated = False
-		digits_ent.config(state="disabled")
-		digits_btn.config(background="#354842", activebackground="#354842", highlightthickness=2)
-		output_label.config(text="Generating... 0.0 %", background="#B2F3DE")
-		root.update_idletasks()
-
-		generating_thread = Thread(target=pi_chudnovsky_algorithm, args=(int(wanted_digits), True))
-		generating_thread.start()
+			generating_thread = Thread(target=pi_chudnovsky_algorithm, args=(int(wanted_digits), True))
+			generating_thread.start()
 
 def pi_click(event):
 	global pi_generated
