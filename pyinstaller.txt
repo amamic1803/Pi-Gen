@@ -1,1 +1,1 @@
-pyinstaller "main.py" --upx-dir "__UPX_PATH__" --noconsole --icon "pi-icon.ico" --onefile --add-data "pi-icon.ico;." --add-data "pi-image.png;." --clean --key "__KEY__" --name "Pi-Gen_v1.0.1"
+pyinstaller "main.py" --upx-dir "__UPX_PATH__" --noconsole --icon "pi-icon.ico" --onefile --add-data "pi-icon.ico;." --add-data "pi-image.png;." --clean --key "__KEY__" --name "Pi-Gen_v1.1.0"
