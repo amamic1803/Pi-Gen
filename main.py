@@ -1,5 +1,5 @@
 from tkinter import *
-import decimal
+from mpmath import mp, mpf
 from math import factorial
 from multiprocessing import Pool, freeze_support
 from threading import Thread
@@ -20,48 +20,48 @@ def resource_path(relative_path):
 	return os.path.join(base_path, relative_path)
 
 def pi_chudnovsky_algorithm_chunks(start, end, precision):
-	decimal.getcontext().prec = precision
+	mp.dps = precision
 
 	base = start - 1
-	M = decimal.Decimal(decimal.Decimal(factorial(6 * base)) / decimal.Decimal((factorial(3 * base) * (factorial(base) ** 3))))
-	L = decimal.Decimal((545_140_134 * base) + 13_591_409)
-	X = decimal.Decimal((- 262_537_412_640_768_000) ** base)
-	K = decimal.Decimal((12 * base) - 6)
+	M = mpf(factorial(6 * base)) / mpf(factorial(3 * base) * (factorial(base) ** 3))
+	L = mpf((545_140_134 * base) + 13_591_409)
+	X = mpf((- 262_537_412_640_768_000) ** base)
+	K = mpf((12 * base) - 6)
 
 	sum_of_chunk = 0
 	for i in range(start, end + 1):
-		L += decimal.Decimal(545_140_134)
-		K += decimal.Decimal(12)
-		M *= decimal.Decimal(((K ** 3) - (16 * K)) / (i ** 3))
-		X *= decimal.Decimal(- 262_537_412_640_768_000)
+		L += mpf(545_140_134)
+		K += mpf(12)
+		M *= mpf(((K ** 3) - (16 * K)) / (i ** 3))
+		X *= mpf(- 262_537_412_640_768_000)
 
 		sum_of_chunk += (M * L) / X
 
 	return sum_of_chunk, (end - start + 1)
 
 def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
-	global started, pi_generated, closed
+	global started, pi_generated, closed, pi_value
 
 	try:
-		decimal.getcontext().prec = int(number_of_digits * 1.0002) + 10
+		mp.dps = int(number_of_digits * 1.0002) + 10 + 1
 
 		if number_of_digits < 2000:
-			C = decimal.Decimal(426_880) * (decimal.Decimal(10_005).sqrt())
-			L = decimal.Decimal(13_591_409)
-			X = decimal.Decimal(1)
-			M = decimal.Decimal(1)
-			K = decimal.Decimal(- 6)
+			C = mpf(426_880) * (mpf(10_005) ** 0.5)
+			L = mpf(13_591_409)
+			X = mpf(1)
+			M = mpf(1)
+			K = mpf(- 6)
 
 			zbroj = (M * L) / X
 
 			pi_old = C / zbroj
-			i = decimal.Decimal(0)
+			i = mpf(0)
 			while True:
-				i += decimal.Decimal(1)
-				L += decimal.Decimal(545_140_134)
-				K += decimal.Decimal(12)
-				M *= decimal.Decimal(((K ** 3) - (16 * K)) / (i ** 3))
-				X *= decimal.Decimal(- 262_537_412_640_768_000)
+				i += mpf(1)
+				L += mpf(545_140_134)
+				K += mpf(12)
+				M *= mpf(((K ** 3) - (16 * K)) / (i ** 3))
+				X *= mpf(- 262_537_412_640_768_000)
 
 				zbroj += (M * L) / X
 
@@ -74,11 +74,11 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 
 			pi_new = str(pi_new)[:number_of_digits + 2]
 		else:
-			C = decimal.Decimal(426_880) * (decimal.Decimal(10_005).sqrt())
+			C = mpf(426_880) * (mpf(10_005) ** 0.5)
 
-			L = decimal.Decimal(13_591_409)
-			X = decimal.Decimal(1)
-			M = decimal.Decimal(1)
+			L = mpf(13_591_409)
+			X = mpf(1)
+			M = mpf(1)
 
 			sum_of_series = (M * L) / X
 
@@ -88,7 +88,7 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 				num_of_iterations = ((num_of_iterations // num_of_cpus) + 1) * num_of_cpus
 			chunk_size = 5 * num_of_cpus
 
-			with Pool(processes=num_of_cpus, maxtasksperchild=20) as pool:
+			with Pool(processes=num_of_cpus) as pool:
 				queue_list = []
 				progress_queued = 0
 				progress_completed = 0
@@ -98,7 +98,7 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 					elif len(queue_list) < 2 * num_of_cpus and progress_queued != num_of_iterations:
 						start_point = progress_queued + 1
 						end_point = progress_queued + min(num_of_iterations - start_point + 1, chunk_size)
-						queue_list.append(pool.apply_async(pi_chudnovsky_algorithm_chunks, args=(start_point, end_point, decimal.getcontext().prec)))
+						queue_list.append(pool.apply_async(pi_chudnovsky_algorithm_chunks, args=(start_point, end_point, mp.dps)))
 						progress_queued += end_point - start_point + 1
 					elif progress_completed == num_of_iterations and len(queue_list) == 0:
 						break
@@ -124,6 +124,8 @@ def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
 			else:
 				output_label.config(text=pi_new)
 			pi_generated = True
+
+		pi_value = pi_new
 
 		return pi_new
 
@@ -183,9 +185,9 @@ def generate_click(event):
 			generating_thread.start()
 
 def pi_click(event):
-	global pi_generated
+	global pi_generated, pi_value
 	if pi_generated:
-		pyperclip.copy(output_label["text"])
+		pyperclip.copy(pi_value)
 		showinfo(title="Copied!", message="Pi copied to clipboard!", parent=root)
 
 
@@ -194,6 +196,7 @@ if __name__ == '__main__':
 
 	started = False
 	pi_generated = False
+	pi_value = ""
 	closed = False
 
 	root = Tk()
