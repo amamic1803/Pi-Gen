@@ -1,5 +1,5 @@
 from tkinter import *
-from mpmath import mp, mpf
+from mpmath import mp, mpf  # take care that gmpy2 is also installed, improves speed of mpmath drastically
 from math import factorial
 from multiprocessing import Pool, freeze_support
 from threading import Thread
