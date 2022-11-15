@@ -1,13 +1,14 @@
-from tkinter import *
-from mpmath import mp, mpf  # take care that gmpy2 is also installed, improves speed of mpmath drastically
+import os
+import sys
 from math import factorial
 from multiprocessing import Pool, freeze_support
 from threading import Thread
-import os
-import sys
-import pyperclip
-import psutil
+from tkinter import *
 from tkinter.messagebox import showinfo, showerror
+
+import psutil
+import pyperclip
+from mpmath import mp, mpf  # take care that gmpy2 is also installed, improves speed of mpmath drastically
 
 
 def resource_path(relative_path):
@@ -203,12 +204,12 @@ if __name__ == '__main__':
 	root.resizable(False, False)
 	root.geometry(f"500x290+{(root.winfo_screenwidth() // 2) - 250}+{(root.winfo_screenheight() // 2) - 145}")
 	root.title("Pi-Gen")
-	root.iconbitmap(resource_path("pi-icon.ico"))
+	root.iconbitmap(resource_path("data/pi-icon.ico"))
 	root.config(background="#B2F3DE")
 
 	reg = root.register(validate_input)
 
-	pi_image = PhotoImage(file=resource_path("pi-image.png"))
+	pi_image = PhotoImage(file=resource_path("data/pi-image.png"))
 	pi_image_label = Label(root, image=pi_image, background="#B2F3DE", activebackground="#B2F3DE", borderwidth=0, highlightthickness=0, anchor=CENTER)
 	pi_image_label.place(x=60, y=30, width=100, height=100)
 
