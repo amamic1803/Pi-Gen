@@ -3,7 +3,7 @@ import sys
 from math import factorial
 from multiprocessing import Pool, freeze_support
 from threading import Thread
-from tkinter import *
+import tkinter as tk
 from tkinter.messagebox import showinfo, showerror
 
 import psutil
@@ -11,14 +11,69 @@ import pyperclip
 from mpmath import mp, mpf  # take care that gmpy2 is also installed, improves speed of mpmath drastically
 
 
-def resource_path(relative_path):
-	""" Get absolute path to resource, works for dev and for PyInstaller """
-	try:
-		# PyInstaller creates a temp folder and stores path in _MEIPASS
-		base_path = sys._MEIPASS
-	except AttributeError:
-		base_path = os.path.abspath(".")
-	return os.path.join(base_path, relative_path)
+class App:
+	def __init__(self):
+		started = False
+		pi_generated = False
+		pi_value = ""
+		closed = False
+
+		root = tk.Tk()
+		root.resizable(False, False)
+		root.geometry(f"500x290+{(root.winfo_screenwidth() // 2) - 250}+{(root.winfo_screenheight() // 2) - 145}")
+		root.title("Pi-Gen")
+		root.iconbitmap(self.resource_path("resources/pi-icon.ico"))
+		root.config(background="#B2F3DE")
+
+		reg = root.register(validate_input)
+
+		pi_image = tk.PhotoImage(file=self.resource_path("resources/pi-image.png"))
+		pi_image_label = tk.Label(root, image=pi_image, background="#B2F3DE", activebackground="#B2F3DE", borderwidth=0, highlightthickness=0, anchor=CENTER)
+		pi_image_label.place(x=60, y=30, width=100, height=100)
+
+		title_label = tk.Label(root, text="Pi-Gen", font=("Gabriola", 75, "italic", "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
+		title_label.place(x=185, y=30, width=250, height=100)
+
+		digits_label = tk.Label(root, text="Digits:", font=("Gabriola", 27, "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
+		digits_label.place(x=15, y=165, width=90, height=50)
+
+		digits_ent = tk.Entry(root, font=("Helvetica", 17), justify=tk.CENTER, validate="key", validatecommand=(reg, "%P"), borderwidth=0, highlightthickness=3, highlightbackground="#ffffff", highlightcolor="#ffffff", disabledbackground="#354842", disabledforeground="#cccccc", background="#6a9185", foreground="#ffffff", insertbackground="#ffffff")
+		digits_ent.place(x=110, y=170, width=280, height=40)
+		digits_ent.insert(0, "25")
+
+		digits_btn = tk.Label(root, text="Generate", font=("Gabriola", 22, "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2, highlightcolor="#ffffff", highlightbackground="#ffffff", borderwidth=0)
+		digits_btn.place(x=395, y=170, width=100, height=40)
+		digits_btn.bind("<Enter>", lambda event: change_thickness_generate(event, 4))
+		digits_btn.bind("<Leave>", lambda event: change_thickness_generate(event, 2))
+		digits_btn.bind("<ButtonRelease-1>", generate_click)
+		root.bind("<KeyPress-Return>", generate_click)
+
+		output_label = tk.Label(root, text="Ready", font=("Helvetica", 15, "bold"), anchor="center", justify="center", foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
+		output_label.place(x=0, width=500, y=210, height=80)
+		output_label.bind("<Enter>", lambda event: change_background_pi(event, "#c9f6e7"))
+		output_label.bind("<Leave>", lambda event: change_background_pi(event, "#B2F3DE"))
+		output_label.bind("<ButtonRelease-1>", pi_click)
+
+		root.mainloop()
+		closed = True
+		psutil.Process(os.getpid()).kill()
+
+	@staticmethod
+	def resource_path(relative_path):
+		""" Get absolute path to resource, works for dev and for PyInstaller """
+		try:
+			# PyInstaller creates a temp folder and stores path in _MEIPASS
+			base_path = sys._MEIPASS
+		except AttributeError:
+			base_path = os.path.abspath(".")
+		return os.path.join(base_path, relative_path)
+
+
+class Chudnovsky:
+	def __init__(self, precision):
+		self.precision = precision
+		self.pi = None
+
 
 def pi_chudnovsky_algorithm_chunks(start, end, precision):
 	mp.dps = precision
@@ -149,10 +204,7 @@ def validate_input(full_text):
 	else:
 		try:
 			int(full_text)
-			if len(full_text) <= 20:
-				return True
-			else:
-				return False
+			return len(full_text) <= 20
 		except ValueError:
 			return False
 
@@ -194,48 +246,4 @@ def pi_click(event):
 
 if __name__ == '__main__':
 	freeze_support()
-
-	started = False
-	pi_generated = False
-	pi_value = ""
-	closed = False
-
-	root = Tk()
-	root.resizable(False, False)
-	root.geometry(f"500x290+{(root.winfo_screenwidth() // 2) - 250}+{(root.winfo_screenheight() // 2) - 145}")
-	root.title("Pi-Gen")
-	root.iconbitmap(resource_path("data/pi-icon.ico"))
-	root.config(background="#B2F3DE")
-
-	reg = root.register(validate_input)
-
-	pi_image = PhotoImage(file=resource_path("data/pi-image.png"))
-	pi_image_label = Label(root, image=pi_image, background="#B2F3DE", activebackground="#B2F3DE", borderwidth=0, highlightthickness=0, anchor=CENTER)
-	pi_image_label.place(x=60, y=30, width=100, height=100)
-
-	title_label = Label(root, text="Pi-Gen", font=("Gabriola", 75, "italic", "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
-	title_label.place(x=185, y=30, width=250, height=100)
-
-	digits_label = Label(root, text="Digits:", font=("Gabriola", 27, "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
-	digits_label.place(x=15, y=165, width=90, height=50)
-
-	digits_ent = Entry(root, font=("Helvetica", 17), justify=CENTER, validate="key", validatecommand=(reg, "%P"), borderwidth=0, highlightthickness=3, highlightbackground="#ffffff", highlightcolor="#ffffff", disabledbackground="#354842", disabledforeground="#cccccc", background="#6a9185", foreground="#ffffff", insertbackground="#ffffff")
-	digits_ent.place(x=110, y=170, width=280, height=40)
-	digits_ent.insert(0, "25")
-
-	digits_btn = Label(root, text="Generate", font=("Gabriola", 22, "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2, highlightcolor="#ffffff", highlightbackground="#ffffff", borderwidth=0)
-	digits_btn.place(x=395, y=170, width=100, height=40)
-	digits_btn.bind("<Enter>", lambda event: change_thickness_generate(event, 4))
-	digits_btn.bind("<Leave>", lambda event: change_thickness_generate(event, 2))
-	digits_btn.bind("<ButtonRelease-1>", generate_click)
-	root.bind("<KeyPress-Return>", generate_click)
-
-	output_label = Label(root, text="Ready", font=("Helvetica", 15, "bold"), anchor="center", justify="center", foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
-	output_label.place(x=0, width=500, y=210, height=80)
-	output_label.bind("<Enter>", lambda event: change_background_pi(event, "#c9f6e7"))
-	output_label.bind("<Leave>", lambda event: change_background_pi(event, "#B2F3DE"))
-	output_label.bind("<ButtonRelease-1>", pi_click)
-
-	root.mainloop()
-	closed = True
-	psutil.Process(os.getpid()).kill()
+	App()
