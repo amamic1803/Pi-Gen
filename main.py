@@ -4,7 +4,7 @@ import os
 import sys
 import tkinter as tk
 from math import factorial
-from multiprocessing import Pool, freeze_support, Value, Process
+from multiprocessing import Pool, freeze_support, Value
 from threading import Thread
 from tkinter.messagebox import showinfo, showerror
 
