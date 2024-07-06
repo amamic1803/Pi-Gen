@@ -67,7 +67,7 @@ def build(name, console, onefile, uac_admin, icon, files, folders):
 
 def main():
 	name = "Pi-Gen"
-	version = "2.1.1"
+	version = "2.1.2"
 
 	console = False
 	onefile = True

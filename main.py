@@ -8,7 +8,6 @@ from multiprocessing import Pool, freeze_support, Value
 from threading import Thread
 from tkinter.messagebox import showinfo, showerror
 
-import psutil
 import pyperclip
 from mpmath import mp, mpf  # take care that gmpy2 is also installed, improves speed of mpmath drastically
 
@@ -82,7 +81,6 @@ class App:
 			self.working_thread.join()
 		except AttributeError:
 			pass
-		psutil.Process(os.getpid()).kill()
 
 	def pi_click(self):
 		if self.pi_value != "":
@@ -96,16 +94,16 @@ class App:
 		wanted_digits = self.digits_ent.get()
 		if wanted_digits == "" or wanted_digits == "0":
 			self.pi_value = ""
-			self.output_lbl.config(text="Ready", cursor="arrow")
+			self.output_lbl.config(text="Ready", cursor="arrow", background="#B2F3DE", activebackground="#B2F3DE")
 		else:
 			self.working = True
 			self.pi_value = ""
 			self.digits_ent.config(state="disabled")
 			self.generate_btn.config(background="#354842", activebackground="#354842", highlightthickness=2, cursor="arrow")
-			self.output_lbl.config(cursor="arrow")
+			self.output_lbl.config(cursor="arrow", background="#B2F3DE", activebackground="#B2F3DE")
 			self.update_progress(0.0)
 			self.root.update_idletasks()
-			self.working_thread = Thread(target=self.worker, args=(int(wanted_digits), ))
+			self.working_thread = Thread(target=self.worker, args=[int(wanted_digits)])
 			self.working_thread.start()
 
 	def update_progress(self, progress: float):
@@ -126,8 +124,10 @@ class App:
 		chudnovsky_thread.start()
 
 		while chudnovsky_thread.is_alive():
-			self.update_progress(chudnovsky.progress)
-			self.root.update_idletasks()
+			try:
+				self.update_progress(chudnovsky.progress)
+			except Exception:  # GUI closed
+				pass
 			chudnovsky_thread.join(0.1)
 
 		try:
@@ -146,7 +146,7 @@ class App:
 				self.output_lbl.config(text="Ready", cursor="arrow")
 				self.pi_value = ""
 				showerror(title="Too big!", message="Can't calculate that many digits of Pi!", parent=self.root)
-		except AttributeError:  # GUI closed
+		except Exception:  # GUI closed
 			pass
 
 	@staticmethod
