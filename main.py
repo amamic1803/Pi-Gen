@@ -18,7 +18,7 @@ class App:
 		self.working: bool = False
 		self.working_thread = None
 		self.pi_value: str = ""
-		self.gui_closed = False
+		self.killswitch = Value(ctypes.c_bool, True)
 
 		self.root = tk.Tk()
 		self.root.geometry(f"500x290"
@@ -77,7 +77,11 @@ class App:
 
 		self.root.mainloop()
 
-		self.gui_closed = True
+		self.killswitch.value = False
+		try:
+			self.working_thread.join()
+		except AttributeError:
+			pass
 		psutil.Process(os.getpid()).kill()
 
 	def pi_click(self):
@@ -115,7 +119,7 @@ class App:
 		self.update_progress(chudnovsky.progress)
 
 		def wrapper(result_status: Value):
-			result_status.value = chudnovsky.generate_pi()
+			result_status.value = chudnovsky.generate_pi(self.killswitch)
 
 		result_status = Value(ctypes.c_bool, False)
 		chudnovsky_thread = Thread(target=wrapper, args=[result_status], daemon=True)
@@ -126,21 +130,24 @@ class App:
 			self.root.update_idletasks()
 			chudnovsky_thread.join(0.1)
 
-		self.working = False
-		self.digits_ent.config(state="normal")
-		self.generate_btn.config(background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2, cursor="hand2")
-		if result_status.value:
-			self.pi_value = chudnovsky.get_pi()
+		try:
+			self.working = False
+			self.digits_ent.config(state="normal")
+			self.generate_btn.config(background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2, cursor="hand2")
+			if result_status.value:
+				self.pi_value = chudnovsky.get_pi()
 
-			if len(self.pi_value) > 42:
-				self.output_lbl.config(text=f"{self.pi_value[:17]}...{self.pi_value[-25:]}")
+				if len(self.pi_value) > 42:
+					self.output_lbl.config(text=f"{self.pi_value[:17]}...{self.pi_value[-25:]}")
+				else:
+					self.output_lbl.config(text=self.pi_value)
+				self.output_lbl.config(cursor="hand2")
 			else:
-				self.output_lbl.config(text=self.pi_value)
-			self.output_lbl.config(cursor="hand2")
-		else:
-			self.output_lbl.config(text="Ready", cursor="arrow")
-			self.pi_value = ""
-			showerror(title="Too big!", message="Can't calculate that many digits of Pi!", parent=self.root)
+				self.output_lbl.config(text="Ready", cursor="arrow")
+				self.pi_value = ""
+				showerror(title="Too big!", message="Can't calculate that many digits of Pi!", parent=self.root)
+		except AttributeError:  # GUI closed
+			pass
 
 	@staticmethod
 	def resource_path(relative_path):
@@ -180,7 +187,7 @@ class Chudnovsky:
 			raise Exception("Pi not generated yet!")
 		return str(self.pi)[:self.digits + 2]
 
-	def generate_pi(self) -> bool:
+	def generate_pi(self, killswitch: Value) -> bool:
 		try:
 			self.progress = 0.0
 			mp.dps = self.precision
@@ -207,7 +214,7 @@ class Chudnovsky:
 					queue_list = collections.deque()
 					progress_queued = 0
 					progress_completed = 0
-					while True:
+					while killswitch.value:
 						if len(queue_list) < 2 * num_of_cpus and progress_queued != num_of_iterations:
 							start_point = progress_queued + 1
 							end_point = progress_queued + min(num_of_iterations - start_point + 1, chunk_size)
