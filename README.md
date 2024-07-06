@@ -1,7 +1,7 @@
 # Pi-Gen
 Calculate Pi to the given number of decimal digits
 
-![screenshot](https://user-images.githubusercontent.com/40371578/185718295-d81751bb-debe-44d1-8988-59a7e1d0ef7e.png)
+![screenshot](https://github.com/amamic1803/Pi-Gen/assets/40371578/49b8e56e-f1b7-480b-bd83-c3cb1b986d2d)
 
 Using Chudnovsky algorithm (https://en.wikipedia.org/wiki/Chudnovsky_algorithm)
 
