@@ -1,9 +1,11 @@
+import collections
+import ctypes
 import os
 import sys
-from math import factorial
-from multiprocessing import Pool, freeze_support
-from threading import Thread
 import tkinter as tk
+from math import factorial
+from multiprocessing import Pool, freeze_support, Value, Process
+from threading import Thread
 from tkinter.messagebox import showinfo, showerror
 
 import psutil
@@ -13,50 +15,132 @@ from mpmath import mp, mpf  # take care that gmpy2 is also installed, improves s
 
 class App:
 	def __init__(self):
-		started = False
-		pi_generated = False
-		pi_value = ""
-		closed = False
+		self.working: bool = False
+		self.working_thread = None
+		self.pi_value: str = ""
+		self.gui_closed = False
 
-		root = tk.Tk()
-		root.resizable(False, False)
-		root.geometry(f"500x290+{(root.winfo_screenwidth() // 2) - 250}+{(root.winfo_screenheight() // 2) - 145}")
-		root.title("Pi-Gen")
-		root.iconbitmap(self.resource_path("resources/pi-icon.ico"))
-		root.config(background="#B2F3DE")
+		self.root = tk.Tk()
+		self.root.geometry(f"500x290"
+		                   f"+{(self.root.winfo_screenwidth() // 2) - 250}"
+		                   f"+{(self.root.winfo_screenheight() // 2) - 145}")
+		self.root.resizable(False, False)
+		self.root.title("Pi-Gen")
+		self.root.iconbitmap(self.resource_path("resources/pi-icon.ico"))
+		self.root.config(background="#B2F3DE")
 
-		reg = root.register(validate_input)
+		self.pi_img = tk.PhotoImage(file=self.resource_path("resources/pi-image.png"))
+		self.pi_img_lbl = tk.Label(self.root, image=self.pi_img, background="#B2F3DE", activebackground="#B2F3DE",
+		                           borderwidth=0, highlightthickness=0, anchor=tk.CENTER)
+		self.pi_img_lbl.place(x=60, y=30, width=100, height=100)
 
-		pi_image = tk.PhotoImage(file=self.resource_path("resources/pi-image.png"))
-		pi_image_label = tk.Label(root, image=pi_image, background="#B2F3DE", activebackground="#B2F3DE", borderwidth=0, highlightthickness=0, anchor=CENTER)
-		pi_image_label.place(x=60, y=30, width=100, height=100)
+		self.title_lbl = tk.Label(self.root, text="Pi-Gen", font=("Gabriola", 75, "italic", "bold"),
+		                          foreground="#FFBC73", activeforeground="#FFBC73",
+		                          background="#B2F3DE", activebackground="#B2F3DE",
+		                          highlightthickness=0, borderwidth=0)
+		self.title_lbl.place(x=185, y=30, width=250, height=100)
 
-		title_label = tk.Label(root, text="Pi-Gen", font=("Gabriola", 75, "italic", "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
-		title_label.place(x=185, y=30, width=250, height=100)
+		self.digits_lbl = tk.Label(self.root, text="Digits:", font=("Gabriola", 27, "bold"),
+		                           foreground="#FFBC73", activeforeground="#FFBC73",
+		                           background="#B2F3DE", activebackground="#B2F3DE",
+		                           highlightthickness=0, borderwidth=0)
+		self.digits_lbl.place(x=15, y=165, width=90, height=50)
 
-		digits_label = tk.Label(root, text="Digits:", font=("Gabriola", 27, "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
-		digits_label.place(x=15, y=165, width=90, height=50)
+		self.reg = self.root.register(self.validate_int)
+		self.digits_ent = tk.Entry(self.root, font=("Helvetica", 17), justify=tk.CENTER,
+		                           validate="key", validatecommand=(self.reg, "%P"),
+		                           borderwidth=0, highlightthickness=3, highlightbackground="#ffffff", highlightcolor="#ffffff",
+		                           disabledbackground="#354842", disabledforeground="#cccccc",
+		                           background="#6a9185", foreground="#ffffff", insertbackground="#ffffff")
+		self.digits_ent.place(x=110, y=170, width=280, height=40)
+		self.digits_ent.insert(0, "25")
 
-		digits_ent = tk.Entry(root, font=("Helvetica", 17), justify=tk.CENTER, validate="key", validatecommand=(reg, "%P"), borderwidth=0, highlightthickness=3, highlightbackground="#ffffff", highlightcolor="#ffffff", disabledbackground="#354842", disabledforeground="#cccccc", background="#6a9185", foreground="#ffffff", insertbackground="#ffffff")
-		digits_ent.place(x=110, y=170, width=280, height=40)
-		digits_ent.insert(0, "25")
+		self.generate_btn = tk.Label(self.root, text="Generate", font=("Gabriola", 22, "bold"), cursor="hand2",
+		                             foreground="#FFBC73", activeforeground="#FFBC73",
+		                             background="#8ec2b1", activebackground="#8ec2b1",
+		                             highlightthickness=2, highlightcolor="#ffffff", highlightbackground="#ffffff", borderwidth=0)
+		self.generate_btn.place(x=395, y=170, width=100, height=40)
+		self.generate_btn.bind("<Enter>", lambda event: self.generate_btn.config(highlightthickness=4) if not self.working else None)
+		self.generate_btn.bind("<Leave>", lambda event: self.generate_btn.config(highlightthickness=2) if not self.working else None)
+		self.generate_btn.bind("<ButtonRelease-1>", lambda event: self.generate_click())
+		self.root.bind("<KeyPress-Return>", lambda event: self.generate_click())
 
-		digits_btn = tk.Label(root, text="Generate", font=("Gabriola", 22, "bold"), foreground="#FFBC73", activeforeground="#FFBC73", background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2, highlightcolor="#ffffff", highlightbackground="#ffffff", borderwidth=0)
-		digits_btn.place(x=395, y=170, width=100, height=40)
-		digits_btn.bind("<Enter>", lambda event: change_thickness_generate(event, 4))
-		digits_btn.bind("<Leave>", lambda event: change_thickness_generate(event, 2))
-		digits_btn.bind("<ButtonRelease-1>", generate_click)
-		root.bind("<KeyPress-Return>", generate_click)
+		self.output_lbl = tk.Label(self.root, text="Ready", font=("Helvetica", 15, "bold"),
+		                           anchor="center", justify="center",
+		                           foreground="#FFBC73", activeforeground="#FFBC73",
+		                           background="#B2F3DE", activebackground="#B2F3DE",
+		                           highlightthickness=0, borderwidth=0)
+		self.output_lbl.place(x=0, width=500, y=210, height=80)
+		self.output_lbl.bind("<Enter>", lambda event: self.output_lbl.config(background="#C9F6E7", activebackground="#C9F6E7") if self.pi_value != "" else None)
+		self.output_lbl.bind("<Leave>", lambda event: self.output_lbl.config(background="#B2F3DE", activebackground="#B2F3DE") if self.pi_value != "" else None)
+		self.output_lbl.bind("<ButtonRelease-1>", lambda event: self.pi_click())
 
-		output_label = tk.Label(root, text="Ready", font=("Helvetica", 15, "bold"), anchor="center", justify="center", foreground="#FFBC73", activeforeground="#FFBC73", background="#B2F3DE", activebackground="#B2F3DE", highlightthickness=0, borderwidth=0)
-		output_label.place(x=0, width=500, y=210, height=80)
-		output_label.bind("<Enter>", lambda event: change_background_pi(event, "#c9f6e7"))
-		output_label.bind("<Leave>", lambda event: change_background_pi(event, "#B2F3DE"))
-		output_label.bind("<ButtonRelease-1>", pi_click)
+		self.root.mainloop()
 
-		root.mainloop()
-		closed = True
+		self.gui_closed = True
 		psutil.Process(os.getpid()).kill()
+
+	def pi_click(self):
+		if self.pi_value != "":
+			pyperclip.copy(self.pi_value)
+			showinfo(title="Copied!", message="Pi copied to clipboard!", parent=self.root)
+
+	def generate_click(self):
+		if self.working:
+			return
+
+		wanted_digits = self.digits_ent.get()
+		if wanted_digits == "" or wanted_digits == "0":
+			self.pi_value = ""
+			self.output_lbl.config(text="Ready", cursor="arrow")
+		else:
+			self.working = True
+			self.pi_value = ""
+			self.digits_ent.config(state="disabled")
+			self.generate_btn.config(background="#354842", activebackground="#354842", highlightthickness=2, cursor="arrow")
+			self.output_lbl.config(cursor="arrow")
+			self.update_progress(0.0)
+			self.root.update_idletasks()
+			self.working_thread = Thread(target=self.worker, args=(int(wanted_digits), ))
+			self.working_thread.start()
+
+	def update_progress(self, progress: float):
+		progress_percent = progress * 100
+		int_part = int(progress_percent)
+		dec_part = int((progress_percent - int_part) * 100)
+		self.output_lbl.config(text=f"Generating... {int_part:3}.{dec_part:02} %")
+
+	def worker(self, digits: int):
+		chudnovsky = Chudnovsky(digits)
+		self.update_progress(chudnovsky.progress)
+
+		def wrapper(result_status: Value):
+			result_status.value = chudnovsky.generate_pi()
+
+		result_status = Value(ctypes.c_bool, False)
+		chudnovsky_thread = Thread(target=wrapper, args=[result_status], daemon=True)
+		chudnovsky_thread.start()
+
+		while chudnovsky_thread.is_alive():
+			self.update_progress(chudnovsky.progress)
+			self.root.update_idletasks()
+			chudnovsky_thread.join(0.1)
+
+		self.working = False
+		self.digits_ent.config(state="normal")
+		self.generate_btn.config(background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2, cursor="hand2")
+		if result_status.value:
+			self.pi_value = chudnovsky.get_pi()
+
+			if len(self.pi_value) > 42:
+				self.output_lbl.config(text=f"{self.pi_value[:17]}...{self.pi_value[-25:]}")
+			else:
+				self.output_lbl.config(text=self.pi_value)
+			self.output_lbl.config(cursor="hand2")
+		else:
+			self.output_lbl.config(text="Ready", cursor="arrow")
+			self.pi_value = ""
+			showerror(title="Too big!", message="Can't calculate that many digits of Pi!", parent=self.root)
 
 	@staticmethod
 	def resource_path(relative_path):
@@ -68,180 +152,107 @@ class App:
 			base_path = os.path.abspath(".")
 		return os.path.join(base_path, relative_path)
 
+	@staticmethod
+	def validate_int(full_text) -> bool:
+		""" Validate if the input is a positive integer, or empty string. """
+
+		if " " in full_text or "-" in full_text:
+			return False
+		elif full_text == "":
+			return True
+		else:
+			try:
+				int(full_text)
+				return len(full_text) <= 20
+			except ValueError:
+				return False
+
 
 class Chudnovsky:
-	def __init__(self, precision):
-		self.precision = precision
+	def __init__(self, digits: int):
+		self.digits = digits
+		self.precision = int(self.digits * 1.0002) + 10 + 1
 		self.pi = None
+		self.progress = 0.0  # 0.0 - 1.0
 
+	def get_pi(self) -> str:
+		if self.pi is None:
+			raise Exception("Pi not generated yet!")
+		return str(self.pi)[:self.digits + 2]
 
-def pi_chudnovsky_algorithm_chunks(start, end, precision):
-	mp.dps = precision
+	def generate_pi(self) -> bool:
+		try:
+			self.progress = 0.0
+			mp.dps = self.precision
 
-	base = start - 1
-	M = mpf(factorial(6 * base)) / mpf(factorial(3 * base) * (factorial(base) ** 3))
-	L = mpf((545_140_134 * base) + 13_591_409)
-	X = mpf((- 262_537_412_640_768_000) ** base)
-	K = mpf((12 * base) - 6)
-
-	sum_of_chunk = 0
-	for i in range(start, end + 1):
-		L += mpf(545_140_134)
-		K += mpf(12)
-		M *= mpf(((K ** 3) - (16 * K)) / (i ** 3))
-		X *= mpf(- 262_537_412_640_768_000)
-
-		sum_of_chunk += (M * L) / X
-
-	return sum_of_chunk, (end - start + 1)
-
-def pi_chudnovsky_algorithm(number_of_digits: int, gui_linked=False):
-	global started, pi_generated, closed, pi_value
-
-	try:
-		mp.dps = int(number_of_digits * 1.0002) + 10 + 1
-
-		if number_of_digits < 2000:
 			C = mpf(426_880) * (mpf(10_005) ** 0.5)
 			L = mpf(13_591_409)
 			X = mpf(1)
 			M = mpf(1)
-			K = mpf(- 6)
-
-			zbroj = (M * L) / X
-
-			pi_old = C / zbroj
-			i = mpf(0)
-			while True:
-				i += mpf(1)
-				L += mpf(545_140_134)
-				K += mpf(12)
-				M *= mpf(((K ** 3) - (16 * K)) / (i ** 3))
-				X *= mpf(- 262_537_412_640_768_000)
-
-				zbroj += (M * L) / X
-
-				pi_new = C / zbroj
-
-				if pi_old == pi_new:
-					break
-				else:
-					pi_old = pi_new
-
-			pi_new = str(pi_new)[:number_of_digits + 2]
-		else:
-			C = mpf(426_880) * (mpf(10_005) ** 0.5)
-
-			L = mpf(13_591_409)
-			X = mpf(1)
-			M = mpf(1)
-
 			sum_of_series = (M * L) / X
 
-			num_of_cpus = os.cpu_count()
-			num_of_iterations = (number_of_digits // 14)
-			if num_of_iterations % num_of_cpus != 0:
-				num_of_iterations = ((num_of_iterations // num_of_cpus) + 1) * num_of_cpus
-			chunk_size = 5 * num_of_cpus
+			num_of_iterations = self.precision // 14
 
-			with Pool(processes=num_of_cpus) as pool:
-				queue_list = []
-				progress_queued = 0
-				progress_completed = 0
-				while True:
-					if closed:
-						break
-					elif len(queue_list) < 2 * num_of_cpus and progress_queued != num_of_iterations:
-						start_point = progress_queued + 1
-						end_point = progress_queued + min(num_of_iterations - start_point + 1, chunk_size)
-						queue_list.append(pool.apply_async(pi_chudnovsky_algorithm_chunks, args=(start_point, end_point, mp.dps)))
-						progress_queued += end_point - start_point + 1
-					elif progress_completed == num_of_iterations and len(queue_list) == 0:
-						break
-					else:
-						out_chunk = queue_list[0].get()
-						sum_of_series += out_chunk[0]
-						progress_completed += out_chunk[1]
-						queue_list.pop(0)
-
-						if gui_linked:
-							output_label.config(text=f"Generating... {round((progress_completed / num_of_iterations) * 100, 1)} %")
-
-			pi_new = str(C / sum_of_series)[:number_of_digits + 2]
-
-		if closed:
-			return
-		elif gui_linked:
-			started = False
-			digits_ent.config(state="normal")
-			digits_btn.config(background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2)
-			if len(pi_new) > 42:
-				output_label.config(text=f"{pi_new[:17]}...{pi_new[-25:]}")
+			if self.precision < 2000:
+				out_chunk = self.process_chunk(1, num_of_iterations, self.precision)
+				sum_of_series += out_chunk[0]
+				self.progress = 100.0
 			else:
-				output_label.config(text=pi_new)
-			pi_generated = True
+				num_of_cpus = os.cpu_count()
+				if num_of_iterations % num_of_cpus != 0:
+					num_of_iterations = ((num_of_iterations // num_of_cpus) + 1) * num_of_cpus
+				chunk_size = 5 * num_of_cpus
 
-		pi_value = pi_new
+				with Pool(processes=num_of_cpus) as pool:
+					queue_list = collections.deque()
+					progress_queued = 0
+					progress_completed = 0
+					while True:
+						if len(queue_list) < 2 * num_of_cpus and progress_queued != num_of_iterations:
+							start_point = progress_queued + 1
+							end_point = progress_queued + min(num_of_iterations - start_point + 1, chunk_size)
+							queue_list.append(
+								pool.apply_async(self.process_chunk, args=(start_point, end_point, self.precision)))
+							progress_queued += end_point - start_point + 1
+						elif progress_completed == num_of_iterations and len(queue_list) == 0:
+							break
+						else:
+							out_chunk = queue_list[0].get()
+							sum_of_series += out_chunk[0]
+							progress_completed += out_chunk[1]
+							queue_list.popleft()
+							self.progress = progress_completed / num_of_iterations
 
-		return pi_new
+			self.pi = C / sum_of_series
 
-	except (MemoryError, OverflowError, ValueError):
-		if gui_linked:
-			started = False
-			digits_ent.config(state="normal")
-			digits_btn.config(background="#8ec2b1", activebackground="#8ec2b1", highlightthickness=2)
-			output_label.config(text="Ready")
-			pi_generated = False
-			showerror(title="Too big!", message="Can't calculate that many digits of Pi!", parent=root)
-		else:
-			raise Exception("Number of digits is too big!")
-
-def validate_input(full_text):
-	if " " in full_text or "-" in full_text:
-		return False
-	elif full_text == "":
-		return True
-	else:
-		try:
-			int(full_text)
-			return len(full_text) <= 20
-		except ValueError:
+			return True
+		except (MemoryError, OverflowError, ValueError):
 			return False
 
-def change_thickness_generate(event, thickness):
-	global started
-	if not started:
-		digits_btn.config(highlightthickness=thickness)
+	@staticmethod
+	def process_chunk(start, end, precision):
+		mp.dps = precision
 
-def change_background_pi(event, color):
-	global pi_generated
-	if pi_generated:
-		output_label.config(background=color, activebackground=color)
+		base = start - 1
+		M = mpf(factorial(6 * base)) / mpf(factorial(3 * base) * (factorial(base) ** 3))
+		L = mpf((545_140_134 * base) + 13_591_409)
+		X = mpf((- 262_537_412_640_768_000) ** base)
+		K = mpf((12 * base) - 6)
 
-def generate_click(event):
-	global started, pi_generated
-	if not started:
-		wanted_digits = digits_ent.get()
-		if wanted_digits == "" or wanted_digits == "0":
-			output_label.config(text="3")
-			pi_generated = True
-		else:
+		L_ADD = mpf(545_140_134)
+		K_ADD = mpf(12)
+		X_MUL = mpf(- 262_537_412_640_768_000)
 
-			started = True
-			pi_generated = False
-			digits_ent.config(state="disabled")
-			digits_btn.config(background="#354842", activebackground="#354842", highlightthickness=2)
-			output_label.config(text="Generating... 0.0 %", background="#B2F3DE")
-			root.update_idletasks()
+		sum_of_chunk = 0
+		for i in range(start, end + 1):
+			L += L_ADD
+			K += K_ADD
+			M *= mpf(((K ** 3) - (16 * K)) / (i ** 3))
+			X *= X_MUL
 
-			generating_thread = Thread(target=pi_chudnovsky_algorithm, args=(int(wanted_digits), True))
-			generating_thread.start()
+			sum_of_chunk += (M * L) / X
 
-def pi_click(event):
-	global pi_generated, pi_value
-	if pi_generated:
-		pyperclip.copy(pi_value)
-		showinfo(title="Copied!", message="Pi copied to clipboard!", parent=root)
+		return sum_of_chunk, (end - start + 1)
 
 
 if __name__ == '__main__':
