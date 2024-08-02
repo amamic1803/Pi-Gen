@@ -3,7 +3,7 @@ Calculate Pi to the given number of decimal digits
 
 ![screenshot](https://github.com/amamic1803/Pi-Gen/assets/40371578/49b8e56e-f1b7-480b-bd83-c3cb1b986d2d)
 
-Using Chudnovsky algorithm (https://en.wikipedia.org/wiki/Chudnovsky_algorithm)
+Using [Chudnovsky algorithm](https://en.wikipedia.org/wiki/Chudnovsky_algorithm)
 
 ## Downloading
 Prebuilt program is available under Releases
